@@ -1,7 +1,7 @@
 import socket
 import threading
 
-HOST = '127.0.0.1'  # Listen on all interfaces
+HOST = '34.42.18.51'  # Listen on all interfaces
 PORT = 5555
 
 rooms = {}  # Dictionary to store room info: room_name -> {'host_ip': ip, 'port': port} 

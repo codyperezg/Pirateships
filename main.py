@@ -21,7 +21,7 @@ window = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 pygame.display.set_caption('Battleship')
 
 # Networking settings
-SERVER_HOST = '127.0.0.1'  # Replace with your server's IP address
+SERVER_HOST = '34.42.18.51'  # Replace with your server's IP address
 SERVER_PORT = 5555
 
 # Networking client class
