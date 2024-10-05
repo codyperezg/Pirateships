@@ -89,16 +89,15 @@ def select_room():
 
 def join_room(room_name):
     network_client.connect_to_server()  # Ensure we are connected
-    response = network_client.send_command(f"GET_ROOM {room_name}")
-    if response and response.startswith("ROOM_INFO"):
-        _, host_ip, host_port = response.split()
-        print(f"Connecting to room '{room_name}' at {host_ip}:{host_port}")
-        # Start the game as client, connecting to the host
-        game = Game(window=window, small_font=small_font, network_client=network_client, is_host=False, peer_ip=host_ip, peer_port=host_port)
+    response = network_client.send_command(f"JOIN_ROOM {room_name}")
+    if response and response.startswith("JOINED_ROOM"):
+        print(f"Joined room '{room_name}'.")
+        # Start the game as client
+        game = Game(window=window, small_font=small_font, network_client=network_client, is_host=False)
         game.run()
     else:
         print("Failed to join room.")
-    network_client.close_connection()
+        network_client.close_connection()
 
 def test_game():
     print("Local Test clicked")
