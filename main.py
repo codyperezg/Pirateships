@@ -1,138 +1,132 @@
-# main.py
-
 import pygame
-import sys
-import socket
-import threading
-from constants import *
-from ui_elements import Button
-from menu import RoomSelectionMenu
-from game import Game
+import time
 
-# Initialize Pygame
-pygame.init()
+resolution = (500, 500)
+screen = pygame.display.set_mode(resolution)
+map_size = (10, 10)  # (rows, columns)
+line_width = 5
+clock = pygame.time.Clock()  # to set max FPS
 
-# Fonts (initialize after pygame.init())
-font = pygame.font.SysFont(None, 48)
-small_font = pygame.font.SysFont(None, 24)
+#background = pygame.image.load("waterbg.png")
+tileimg = pygame.image.load("oceanTile.png")
+darktileimg = pygame.image.load("darkOceanTile.png")
+#background = pygame.transform.scale(background, (500,500))
 
-# Set up the display
-window = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-pygame.display.set_caption('Battleship')
+BLUE  = (0, 0, 255)
+RED   = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+    
 
-# Networking settings
-SERVER_HOST = '127.0.0.1'  # Replace with your server's IP address
-SERVER_PORT = 5555
+def evaluate_dimensions():
+    # Evaluate the width and the height of the squares.
+    square_width = (resolution[0] / map_size[0]) - line_width * ((map_size[0] + 1) / map_size[0])
+    square_height = (resolution[1] / map_size[1]) - line_width * ((map_size[1] + 1) / map_size[1])
+    return (square_width, square_height)
 
-# Networking client class
-class NetworkClient:
-    def __init__(self):
-        self.server_host = SERVER_HOST
-        self.server_port = SERVER_PORT
-        self.sock = None
+def convert_column_to_x(column, square_width):
+    x = line_width * (column + 1) + square_width * column
+    return x
 
-    def connect_to_server(self):
-        print(f"Attempting to connect to server at {self.server_host}:{self.server_port}")
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            self.sock.connect((self.server_host, self.server_port))
-            print("Connected to server.")
-        except Exception as e:
-            print(f"Failed to connect to server: {e}")
-            self.sock = None
+def convert_row_to_y(row, square_height):
+    y = line_width * (row + 1) + square_height * row
+    return y
 
-    def send_command(self, command):
-        if self.sock:
-            try:
-                self.sock.sendall(command.encode())
-                response = self.sock.recv(1024).decode()
-                return response
-            except Exception as e:
-                print(f"Communication error: {e}")
-                return None
-        else:
-            print("Not connected to server.")
-            return None
-
-    def close_connection(self):
-        if self.sock:
-            self.sock.close()
-            self.sock = None
+def draw_squares():
+    global matrix
+    matrix = [[column for column in range(map_size[1])] for row in range(map_size[0])]
+    
+    #print(matrix)
+    #print (matrix[2][2])
+    square_width, square_height = evaluate_dimensions()
+    for row in range(map_size[0]):
+        for column in range(map_size[1]):
+            #color = (WHITE)  # (R, G, B)
+            x = convert_column_to_x(column, square_width)
+            y = convert_row_to_y(row, square_height)
+            
+            #geometry = (x, y, square_width, square_height)
+            matrix[row][column] = gridtile(pygame.Rect(x, y, square_width, square_height), (row, column), False, False)
+            pygame.draw.rect(screen, BLUE, matrix[row][column].tile)
+            screen.blit(tileimg, (x,y))
+            #tileimg = pygame.transform.chop(background, matrix[row][column].Rect)
+            #surface = matrix[row][column].Rect
+            #surface.blit(tileimg, (x, y))
 
 
-# Global network client instance
-network_client = NetworkClient()
+class gridtile:
+    def __init__(self, tile, coordinate, ship, clicked):
+        self.tile = tile
+        self.coordinate = coordinate
+        self.ship = ship
+        self.clicked = clicked
+    
+    def __str__(self):
+        return f"{self.coordinate}"
+    
+    def coordstostr(self):
+        return str(self.coordinate)
+        
 
-# Callback functions
-def create_room():
-    print("Create Room clicked")
-    room_name = "Room_" + socket.gethostname()
-    network_client.connect_to_server()
-    response = network_client.send_command(f"CREATE_ROOM {room_name}")
-    if response and response.startswith("ROOM_CREATED"):
-        print(f"Room '{room_name}' created.")
-        # Start the game as host
-        game = Game(window=window, small_font=small_font, network_client=network_client, is_host=True)
-        game.run()
-    else:
-        print("Failed to create room.")
-        network_client.close_connection()
+handled = False
+test = 0
 
-def select_room():
-    print("Select Room clicked")
-    room_menu = RoomSelectionMenu(window, network_client, small_font)
-    selected_room = room_menu.run()
-    if selected_room:
-        join_room(selected_room)
-    else:
-        print("No room selected.")
+while True:
+    if test == 0:
+        screen.fill(WHITE)
+        #screen.blit(background, (0, 0))
+        draw_squares()
+        pygame.display.update()
+        test = 1
+    #testtile = gridtile(pygame.Rect(1,1, 10,10), (1,1))
+    #print(testtile)
+    
+    ev = pygame.event.get()
+    for row in range(map_size[0]):
+            for column in range(map_size[1]):
+                if pygame.mouse.get_pressed()[0] and matrix[row][column].tile.collidepoint(pygame.mouse.get_pos()) and not handled and matrix[row][column].clicked == False:
+                    print ("pressed " + matrix[row][column].coordstostr())
+                    matrix[row][column].clicked = True
+                    handled = pygame.mouse.get_pressed()[0]
+                    time.sleep(0.1)
+                    handled = False
+                    #pygame.draw.rect(screen, BLACK, matrix[row][column].Rect)
+                    #pygame.draw.rect(screen, BLUE, matrix[row][column].tile)
+                    help = pygame.draw.rect(screen, BLUE, matrix[row][column].tile)
+                    screen.blit(darktileimg, help)
+                    pygame.display.update()
+                elif pygame.mouse.get_pressed()[0] and matrix[row][column].tile.collidepoint(pygame.mouse.get_pos()) and matrix[row][column].clicked == True:
+                    print("already clicked here")
+                    handled = pygame.mouse.get_pressed()[0]
+                    time.sleep(0.1)
+                    handled = False
+                    pygame.display.update()
+    
 
-def join_room(room_name):
-    network_client.connect_to_server()  # Ensure we are connected
-    response = network_client.send_command(f"GET_ROOM {room_name}")
-    if response and response.startswith("ROOM_INFO"):
-        _, host_ip, host_port = response.split()
-        print(f"Connecting to room '{room_name}' at {host_ip}:{host_port}")
-        # Start the game as client, connecting to the host
-        game = Game(window=window, small_font=small_font, network_client=network_client, is_host=False, peer_ip=host_ip, peer_port=host_port)
-        game.run()
-    else:
-        print("Failed to join room.")
-    network_client.close_connection()
+    """
+  # proceed events
+    for event in ev:
 
-def test_game():
-    print("Local Test clicked")
-    # Start the game without connecting to the network
-    game = Game(window=window, small_font=small_font, network_client=network_client, local_test=True)
-    game.run()
+    # handle MOUSEBUTTONUP
+        if event.type == pygame.MOUSEBUTTONUP:
+        pos = pygame.mouse.get_pos()
 
-# Create buttons with the font
-create_room_button = Button('Create Room', (WINDOW_WIDTH // 2 - 100, 200), create_room, font)
-select_room_button = Button('Select Room', (WINDOW_WIDTH // 2 - 100, 300), select_room, font)
-test_game_button = Button('Local Test', (WINDOW_WIDTH // 2 - 100, 400), test_game, font)
-
-# Main loop
-def main_menu():
-    while True:
-        window.fill(GRAY)
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                network_client.close_connection()
-                pygame.quit()
-                sys.exit()
-
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                pos = pygame.mouse.get_pos()
-                create_room_button.check_click(pos)
-                select_room_button.check_click(pos)
-                test_game_button.check_click(pos)
-
-        create_room_button.draw(window)
-        select_room_button.draw(window)
-        test_game_button.draw(window)
-
-        pygame.display.flip()
-
-if __name__ == "__main__":
-    main_menu()
+        # get a list of all sprites that are under the mouse cursor
+        clicked_sprites = [[column for column in range(map_size[1])] for row in range(map_size[0]) if .rect.collidepoint(pos)]
+    """
+    
+    #clock.tick(60)  # max FPS = 60
+    #screen.fill(BLUE)  # Fill screen with black color.
+    #draw_squares()
+    #pygame.display.update()  # Update the screen.
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            quit()
+        """  
+        for row in range(map_size[0]):
+            for column in range(map_size[1]):
+                if pygame.mouse.get_pressed()[1] and matrix[row][column].collidepoint(pygame.mouse.get_pos()):
+                    print ("pressed " + matrix[row][column])
+        """ 
