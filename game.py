@@ -8,8 +8,6 @@ import sys
 from message_log import MessageLog
 # Any other necessary imports
 
-# Game class
-
 class Game:
     def __init__(self, window, small_font, network_client=None, is_host=False, local_test=False):
         self.window = window
@@ -109,6 +107,7 @@ class Game:
             self.message_log.add_message("Opponent has placed all ships.")
             if self.my_ships_ready:
                 self.game_started = True
+                self.message_log.add_message("Both players are ready. Game starts now!")
         else:
             print(f"Unknown command received: {command}")
 
@@ -120,7 +119,6 @@ class Game:
             except Exception as e:
                 print(f"Failed to send message: {e}")
 
-    
     def send_attack(self, grid_x, grid_y):
         if self.local_test:
             self.message_log.add_message(f"Attacked position ({grid_x}, {grid_y}) in local test mode.")
@@ -176,24 +174,6 @@ class Game:
         # Switch turns
         self.my_turn = False
 
-    def send_to_peer(self, message):
-        if self.conn:
-            try:
-                self.conn.sendall(message.encode())
-            except Exception as e:
-                print(f"Failed to send message: {e}")
-
-    def send_attack(self, grid_x, grid_y):
-        if self.local_test:
-            # In local test mode, simulate an attack result
-            self.message_log.add_message(f"Attacked position ({grid_x}, {grid_y}) in local test mode.")
-            # Update enemy grid for testing
-            self.enemy_grid[grid_y][grid_x] = 3  # Mark as miss for simplicity
-            # Switch turns
-            self.my_turn = False
-        else:
-            self.send_message_to_server(f"ATTACK {grid_x} {grid_y}")
-
     def check_game_over(self):
         # If all ships have no remaining cells, game over
         return all(not info['cells'] for info in self.placed_ships.values())
@@ -221,26 +201,7 @@ class Game:
             grid_x = (x - GRID_ORIGIN[0]) // CELL_SIZE
             grid_y = (y - GRID_ORIGIN[1]) // CELL_SIZE
 
-            if self.all_ships_placed():
-                self.my_ships_ready = True
-                self.message_log.add_message("All ships placed. Waiting for opponent.")
-                if not self.local_test:
-                    self.send_message_to_server("ALL_SHIPS_PLACED")
-                if self.opponent_ready:
-                    self.game_started = True
-                # Attack phase
-                if not self.my_turn:
-                    self.message_log.add_message("It's not your turn.")
-                    return
-                if 0 <= grid_x < GRID_SIZE and 0 <= grid_y < GRID_SIZE:
-                    if self.enemy_grid[grid_y][grid_x] == 0:
-                        self.send_attack(grid_x, grid_y)
-                        self.my_turn = True if self.local_test else False
-                    else:
-                        self.message_log.add_message("You have already attacked this cell.")
-                else:
-                    self.message_log.add_message("Click within the grid area.")
-            else:
+            if not self.all_ships_placed():
                 # Ship placement phase
                 if self.selected_ship:
                     if self.valid_placement:
@@ -251,15 +212,35 @@ class Game:
                         self.selected_ship = None
                         self.hovered_cells = []
                         self.valid_placement = False
-                        # Notify peer when all ships are placed
+                        # Notify when all ships are placed
                         if self.all_ships_placed():
+                            self.my_ships_ready = True
+                            self.message_log.add_message("All ships placed. Waiting for opponent.")
                             if not self.local_test:
                                 self.send_message_to_server("ALL_SHIPS_PLACED")
-                            self.message_log.add_message("All ships placed. Waiting for opponent.")
+                            if self.opponent_ready:
+                                self.game_started = True
+                                self.message_log.add_message("Both players are ready. Game starts now!")
                     else:
                         self.message_log.add_message("Cannot place ship here.")
                 else:
                     self.message_log.add_message("No ship selected.")
+            else:
+                # Attack phase
+                if not self.game_started:
+                    self.message_log.add_message("Waiting for both players to be ready.")
+                    return
+                if not self.my_turn:
+                    self.message_log.add_message("It's not your turn.")
+                    return
+                if 0 <= grid_x < GRID_SIZE and 0 <= grid_y < GRID_SIZE:
+                    if self.enemy_grid[grid_y][grid_x] == 0:
+                        self.send_attack(grid_x, grid_y)
+                        # Turn will switch after handling the result
+                    else:
+                        self.message_log.add_message("You have already attacked this cell.")
+                else:
+                    self.message_log.add_message("Click within the grid area.")
 
     def all_ships_placed(self):
         return len(self.placed_ships) == len(SHIP_SIZES)
@@ -391,6 +372,8 @@ class Game:
         status_text = "Your turn" if self.my_turn else "Opponent's turn"
         if self.game_over:
             status_text = f"Game Over! Winner: {self.winner}"
+        elif not self.game_started:
+            status_text = "Waiting for both players to be ready..."
         text_surface = self.small_font.render(status_text, True, BLACK)
         surface.blit(text_surface, (WINDOW_WIDTH // 2 - text_surface.get_width() // 2, 10))
 
@@ -437,3 +420,7 @@ class Game:
 
             self.draw(self.window)
             pygame.display.flip()
+
+        # Clean up connection after game ends
+        if self.conn:
+            self.conn.close()
