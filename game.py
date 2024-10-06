@@ -476,7 +476,8 @@ class Game:
                         pygame.draw.rect(surface, RED, rect)
                 elif self.grid[row][col] == 3:
                     # Miss marker
-                    pygame.draw.rect(surface, WHITE, rect)
+                    #pygame.draw.rect(surface, WHITE, rect)
+                    surface.blit(darktileimg, rect)
 
                 # Draw grid lines last to ensure they are visible
                 pygame.draw.rect(surface, BLACK, rect, 1)
@@ -545,7 +546,8 @@ class Game:
                     pygame.draw.rect(surface, RED, rect)
                 elif self.enemy_grid[row][col] == 3:
                     # Miss marker
-                    pygame.draw.rect(surface, WHITE, rect)
+                    #pygame.draw.rect(surface, WHITE, rect)
+                    surface.blit(darktileimg, rect)
 
                 # Draw grid lines last to ensure they are visible
                 pygame.draw.rect(surface, BLACK, rect, 1)

@@ -105,11 +105,11 @@ def join_room(room_name):
         network_client.close_connection()
 
     
-#def test_game():
-#    print("Local Test clicked")
-#    # Start the game without connecting to the network
-#    game = Game(window=window, small_font=small_font, network_client=network_client, local_test=True)
-#    game.run()
+def test_game():
+    print("Local Test clicked")
+    # Start the game without connecting to the network
+    game = Game(window=window, small_font=small_font, network_client=network_client, local_test=True)
+    game.run()
 
 # Create buttons with the font
 create_room_button = Button('Create Room', (WINDOW_WIDTH // 2 - 100, 250), create_room, font, "create")
