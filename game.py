@@ -8,6 +8,10 @@ import sys
 from message_log import MessageLog
 # Any other necessary imports
 
+# Constants for grid positions
+ENEMY_GRID_ORIGIN = (50, 100)  # Adjusted Y position if needed
+PLAYER_GRID_ORIGIN = (WINDOW_WIDTH - GRID_SIZE * CELL_SIZE - 100, 100)  # Adjusted Y position if needed
+
 class Game:
     def __init__(self, window, small_font, network_client=None, is_host=False, local_test=False):
         self.window = window
@@ -185,62 +189,38 @@ class Game:
             self.message_log.add_message("Game over.")
             return
 
-        if x < GRID_ORIGIN[0]:
-            # Clicked on the left side (ship selection area)
-            y_offset = 50
-            for ship in self.available_ships:
-                ship_rect = pygame.Rect(50, y_offset, 100, 30)
-                if ship_rect.collidepoint(pos):
-                    self.selected_ship = ship
-                    self.message_log.add_message(f"Selected ship: {self.selected_ship}")
-                    self.update_hovered_cells()
-                    break
-                y_offset += 40
-        else:
-            # Clicked on the grid area
-            grid_x = (x - GRID_ORIGIN[0]) // CELL_SIZE
-            grid_y = (y - GRID_ORIGIN[1]) // CELL_SIZE
-
+        # Check if click is within the enemy grid (left side)
+        if ENEMY_GRID_ORIGIN[0] <= x < ENEMY_GRID_ORIGIN[0] + GRID_SIZE * CELL_SIZE and \
+        ENEMY_GRID_ORIGIN[1] <= y < ENEMY_GRID_ORIGIN[1] + GRID_SIZE * CELL_SIZE:
+            # Attack phase
+            if not self.all_ships_placed():
+                self.message_log.add_message("Place all your ships first.")
+                return
+            if not self.game_started:
+                self.message_log.add_message("Waiting for both players to be ready.")
+                return
+            if not self.my_turn:
+                self.message_log.add_message("It's not your turn.")
+                return
+            grid_x = int((x - ENEMY_GRID_ORIGIN[0]) // CELL_SIZE)
+            grid_y = int((y - ENEMY_GRID_ORIGIN[1]) // CELL_SIZE)
+            if self.enemy_grid[grid_y][grid_x] == 0:
+                self.send_attack(grid_x, grid_y)
+                # Turn will switch after handling the result
+            else:
+                self.message_log.add_message("You have already attacked this cell.")
+                        # Check if click is within the player's grid (right side)
+        elif PLAYER_GRID_ORIGIN[0] <= x < PLAYER_GRID_ORIGIN[0] + GRID_SIZE * CELL_SIZE and \
+            PLAYER_GRID_ORIGIN[1] <= y < PLAYER_GRID_ORIGIN[1] + GRID_SIZE * CELL_SIZE:
             if not self.all_ships_placed():
                 # Ship placement phase
-                if self.selected_ship:
-                    if self.valid_placement:
-                        # Place the ship
-                        self.place_ship()
-                        self.message_log.add_message(f"Placed {self.selected_ship}")
-                        self.available_ships.remove(self.selected_ship)
-                        self.selected_ship = None
-                        self.hovered_cells = []
-                        self.valid_placement = False
-                        # Notify when all ships are placed
-                        if self.all_ships_placed():
-                            self.my_ships_ready = True
-                            self.message_log.add_message("All ships placed. Waiting for opponent.")
-                            if not self.local_test:
-                                self.send_message_to_server("ALL_SHIPS_PLACED")
-                            if self.opponent_ready:
-                                self.game_started = True
-                                self.message_log.add_message("Both players are ready. Game starts now!")
-                    else:
-                        self.message_log.add_message("Cannot place ship here.")
-                else:
-                    self.message_log.add_message("No ship selected.")
+                self.handle_ship_placement_click(x, y)
             else:
-                # Attack phase
-                if not self.game_started:
-                    self.message_log.add_message("Waiting for both players to be ready.")
-                    return
-                if not self.my_turn:
-                    self.message_log.add_message("It's not your turn.")
-                    return
-                if 0 <= grid_x < GRID_SIZE and 0 <= grid_y < GRID_SIZE:
-                    if self.enemy_grid[grid_y][grid_x] == 0:
-                        self.send_attack(grid_x, grid_y)
-                        # Turn will switch after handling the result
-                    else:
-                        self.message_log.add_message("You have already attacked this cell.")
-                else:
-                    self.message_log.add_message("Click within the grid area.")
+                # Ignore clicks on player's grid after ships are placed
+                self.message_log.add_message("All ships placed. Attack the enemy by clicking on their grid.")
+        else:
+            # Clicked elsewhere, maybe on ship selection
+            self.handle_ship_selection_click(pos)
 
     def all_ships_placed(self):
         return len(self.placed_ships) == len(SHIP_SIZES)
