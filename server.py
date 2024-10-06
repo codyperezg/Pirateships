@@ -12,7 +12,7 @@ def handle_client(conn, addr):
     current_room = None
     try:
         while True:
-            data = conn.recv(1024).decode()
+            data = conn.recv(1024)
             if not data:
                 break
             try:
