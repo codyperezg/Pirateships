@@ -158,7 +158,10 @@ class Game:
         for ship, info in self.placed_ships.items():
             if (grid_x, grid_y) in info['cells']:
                 hit = True
+                # Remove the cell from 'cells'
                 info['cells'].remove((grid_x, grid_y))
+                # Remove the cell from 'ship_cells'
+                self.ship_cells.pop((grid_y, grid_x), None)
                 if not info['cells']:
                     sunk_ship = ship
                     self.message_log.add_message(f"Your {sunk_ship} has been sunk!")
@@ -184,6 +187,7 @@ class Game:
 
         # Switch turns
         self.my_turn = True
+
 
     def handle_result(self, grid_x, grid_y, hit_or_miss, ship_sunk):
         # Update enemy grid
@@ -223,7 +227,7 @@ class Game:
 
     def check_game_over(self):
         # If all ships have no remaining cells, game over
-        return all(not info['cells'] for info in self.placed_ships.values())
+        return all(len(info['cells']) == 0 for info in self.placed_ships.values())
 
     def handle_click(self, pos):
         x, y = pos
@@ -405,7 +409,6 @@ class Game:
             'orientation': self.ship_orientation
         }
 
-
     def draw_grid(self, surface):
         global matrix
         matrix = [[column for column in range(GRID_SIZE)] for row in range(GRID_SIZE)]
@@ -430,11 +433,8 @@ class Game:
                     highlight_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
                     highlight_surface.fill(color)
                     surface.blit(highlight_surface, rect.topleft)
-                    # Optionally, you can draw a darker tile
-                    # darktileimg.set_alpha(100)
-                    # surface.blit(darktileimg, rect.topleft)
-                elif self.grid[row][col] == 1:
-                    # Render the ship
+                elif self.grid[row][col] == 1 or self.grid[row][col] == 2:
+                    # Render the ship if ship_info exists
                     ship_info = self.ship_cells.get((row, col), None)
                     if ship_info:
                         ship_length = ship_info['length']
@@ -466,18 +466,18 @@ class Game:
                                 rotateboatmid = pygame.transform.rotate(boatmid, 90)
                                 surface.blit(rotateboatmid, rect.topleft)
                     else:
-                        # Fallback in case ship_info is missing
-                        darktileimg.set_alpha(255)
-                        surface.blit(darktileimg, rect.topleft)
-                elif self.grid[row][col] == 2:
-                    # Hit marker
-                    pygame.draw.rect(surface, RED, rect)
+                        # Cell was removed; optionally, you can render a different image or leave it as water
+                        pass
+                    # If the cell is hit, overlay a hit marker
+                    if self.grid[row][col] == 2:
+                        pygame.draw.rect(surface, RED, rect)
                 elif self.grid[row][col] == 3:
                     # Miss marker
                     pygame.draw.rect(surface, WHITE, rect)
 
                 # Draw grid lines last to ensure they are visible
                 pygame.draw.rect(surface, BLACK, rect, 1)
+
 
 
     #whole function deals only with ship text to the side of the grid
