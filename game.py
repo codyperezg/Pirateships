@@ -36,72 +36,138 @@ class Game:
         self.available_ships = list(SHIP_SIZES.keys())
         self.mouse_pos = (0, 0)
         self.is_host = is_host
-        self.peer_ip = peer_ip
-        self.peer_port = peer_port
-        self.conn = None  # Socket connection to peer
-        self.peer_thread = None
+        #self.peer_ip = peer_ip
+        #self.peer_port = peer_port
+        #self.conn = None  # Socket connection to peer
+        #self.peer_thread = None
         self.hovered_cells = []      # Cells currently being hovered over
         self.valid_placement = False # Indicates if the current placement is valid
         self.enemy_grid = [[0 for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
-        self.my_turn = False
+        self.my_turn = self.is_host
         self.game_over = False
         self.winner = None
         self.message_log = MessageLog(50, WINDOW_HEIGHT - 150, WINDOW_WIDTH - 100, 100, small_font)
         self.local_test = local_test
+        self.my_ships_ready = False
+        self.opponent_ready = False
+        self.game_started = False
+        self.client_joined = False
+        self.hits = 0
+        self.moves = 0
 
         if self.local_test:
-            self.my_turn = True  # Allow interaction in local test mode
+            self.my_turn = True
             self.message_log.add_message("Local Test Mode")
         else:
-            if self.is_host:
-                self.my_turn = True  # Host starts the game
-                self.start_host()
-            elif self.peer_ip and self.peer_port:
-                self.connect_to_host()
-
-    def start_host(self):
-        threading.Thread(target=self.host_listener, daemon=True).start()
-
-    def host_listener(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(('', 0))  # Bind to any free port
-            s.listen()
-            host_ip = socket.gethostbyname(socket.gethostname())
-            host_port = s.getsockname()[1]
-            print(f"Hosting game on {host_ip}:{host_port}")
-            # Update the server with the correct port
             if self.network_client:
-                self.network_client.connect_to_server()
-                self.network_client.send_command(f"UPDATE_ROOM_PORT {host_port}")
-                self.network_client.close_connection()
-            # Accept a connection from the peer
-            self.conn, addr = s.accept()
-            print(f"Player connected from {addr}")
-            self.peer_thread = threading.Thread(target=self.handle_peer_messages, daemon=True)
-            self.peer_thread.start()
+                self.conn = self.network_client.sock
+                self.peer_thread = threading.Thread(target=self.handle_server_messages, daemon=True)
+                self.peer_thread.start()
+            else:
+                self.message_log.add_message("Network client not available.")
 
-    def connect_to_host(self):
-        print(f"Connecting to host at {self.peer_ip}:{self.peer_port}")
-        self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.conn.connect((self.peer_ip, int(self.peer_port)))
-        self.peer_thread = threading.Thread(target=self.handle_peer_messages, daemon=True)
-        self.peer_thread.start()
-
-    def handle_peer_messages(self):
+    def handle_server_messages(self):
         try:
             while True:
                 data = self.conn.recv(1024).decode()
                 if data:
-                    print(f"Received from peer: {data}")
-                    # Parse the message and handle accordingly
-                    self.parse_message(data)
+                    print(f"Received from server: {data}")
+                    self.parse_server_message(data)
                 else:
                     break
         except ConnectionResetError:
-            print("Peer disconnected.")
+            print("Server connection lost.")
+            self.running = False
         finally:
             if self.conn:
                 self.conn.close()
+
+    def parse_server_message(self, data):
+        parts = data.strip().split(' ', 1)
+        command = parts[0]
+        params = parts[1] if len(parts) > 1 else ''
+        
+        if command == 'MESSAGE_FROM_HOST':
+            if not self.is_host:
+                self.parse_message(params)
+        elif command == 'MESSAGE_FROM_CLIENT':
+            if self.is_host:
+                self.parse_message(params)
+        elif command == 'CLIENT_JOINED':
+            if self.is_host:
+                self.client_joined = True
+                self.message_log.add_message("Client joined the game.")
+        elif command == 'HOST_DISCONNECTED':
+            self.message_log.add_message("Host has disconnected.")
+            self.running = False
+        elif command == 'CLIENT_DISCONNECTED':
+            self.message_log.add_message("Client has disconnected.")
+            self.running = False
+        else:
+            print(f"Unknown command received: {command}")
+    #def start_host(self):
+    #    threading.Thread(target=self.host_listener, daemon=True).start()
+
+    #def host_listener(self):
+    #    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    #        s.bind(('', 0))  # Bind to any free port
+    #        s.listen()
+    #        host_ip = socket.gethostbyname(socket.gethostname())
+    #        host_port = s.getsockname()[1]
+    #        print(f"Hosting game on {host_ip}:{host_port}")
+    #        # Update the server with the correct port
+    #        if self.network_client:
+    #            self.network_client.connect_to_server()
+    #            self.network_client.send_command(f"UPDATE_ROOM_PORT {host_port}")
+    #            self.network_client.close_connection()
+    #        # Accept a connection from the peer
+    #        self.conn, addr = s.accept()
+    #        print(f"Player connected from {addr}")
+    #        self.peer_thread = threading.Thread(target=self.handle_peer_messages, daemon=True)
+    #        self.peer_thread.start()
+
+    #def connect_to_host(self):
+    #    print(f"Connecting to host at {self.peer_ip}:{self.peer_port}")
+    #    self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #    self.conn.connect((self.peer_ip, int(self.peer_port)))
+    #    self.peer_thread = threading.Thread(target=self.handle_peer_messages, daemon=True)
+    #    self.peer_thread.start()
+
+    #def handle_peer_messages(self):
+    #    try:
+    #        while True:
+    #            data = self.conn.recv(1024).decode()
+    #            if data:
+    #                print(f"Received from peer: {data}")
+    #                # Parse the message and handle accordingly
+    #                self.parse_message(data)
+    #            else:
+    #                break
+    #    except ConnectionResetError:
+    #        print("Peer disconnected.")
+    #    finally:
+    #        if self.conn:
+    #            self.conn.close()
+
+    #def parse_message(self, data):
+    #    parts = data.strip().split(' ')
+    #    command = parts[0]
+
+    #    if command == 'ATTACK':
+    #        grid_x, grid_y = int(parts[1]), int(parts[2])
+    #        self.handle_attack(grid_x, grid_y)
+    #    elif command == 'RESULT':
+    #        grid_x, grid_y = int(parts[1]), int(parts[2])
+    #        hit_or_miss = parts[3]
+    #        ship_sunk = parts[4] if len(parts) > 4 else None
+    #        self.handle_result(grid_x, grid_y, hit_or_miss, ship_sunk)
+    #    elif command == 'GAME_OVER':
+    #        winner = parts[1]
+    #        self.game_over = True
+    #        self.winner = winner
+    #        self.message_log.add_message(f"Game over! Winner: {winner}")
+    #    else:
+    #        print(f"Unknown command received: {command}")
 
     def parse_message(self, data):
         parts = data.strip().split(' ')
@@ -120,8 +186,22 @@ class Game:
             self.game_over = True
             self.winner = winner
             self.message_log.add_message(f"Game over! Winner: {winner}")
+        elif command == 'ALL_SHIPS_PLACED':
+            self.opponent_ready = True
+            self.message_log.add_message("Opponent has placed all ships.")
+            if self.my_ships_ready:
+                self.game_started = True
+                self.message_log.add_message("Both players are ready. Game starts now!")
         else:
             print(f"Unknown command received: {command}")
+
+    def send_message_to_server(self, message):
+        if self.conn:
+            try:
+                command = f"MESSAGE {message}"
+                self.conn.sendall(command.encode('utf-8'))
+            except Exception as e:
+                print(f"Failed to send message: {e}")
 
     def handle_attack(self, grid_x, grid_y):
         # Check if any ship occupies this cell
@@ -145,13 +225,13 @@ class Game:
         result_message = f"RESULT {grid_x} {grid_y} {'HIT' if hit else 'MISS'}"
         if sunk_ship:
             result_message += f" {sunk_ship}"
-        self.send_to_peer(result_message)
+        self.send_message_to_server(result_message)
 
         # Check if all ships are sunk
         if self.check_game_over():
             self.game_over = True
             self.winner = 'Opponent'
-            self.send_to_peer("GAME_OVER Opponent")
+            self.send_message_to_server("GAME_OVER Opponent")
             self.message_log.add_message("All your ships have been sunk! You lose.")
 
         # Switch turns
@@ -160,6 +240,8 @@ class Game:
     def handle_result(self, grid_x, grid_y, hit_or_miss, ship_sunk):
         # Update enemy grid
         self.enemy_grid[grid_y][grid_x] = 2 if hit_or_miss == 'HIT' else 3  # 2: Hit, 3: Miss
+        if hit_or_miss == 'HIT':
+            self.hits += 1
         if ship_sunk:
             self.message_log.add_message(f"You sunk the opponent's {ship_sunk}!")
         elif hit_or_miss == 'HIT':
@@ -170,23 +252,21 @@ class Game:
         # Switch turns
         self.my_turn = False
 
-    def send_to_peer(self, message):
-        if self.conn:
-            try:
-                self.conn.sendall(message.encode())
-            except Exception as e:
-                print(f"Failed to send message: {e}")
+    #def send_to_peer(self, message):
+    #    if self.conn:
+    #        try:
+    #            self.conn.sendall(message.encode())
+    #        except Exception as e:
+    #            print(f"Failed to send message: {e}")
 
     def send_attack(self, grid_x, grid_y):
         if self.local_test:
-            # In local test mode, simulate an attack result
             self.message_log.add_message(f"Attacked position ({grid_x}, {grid_y}) in local test mode.")
-            # Update enemy grid for testing
-            self.enemy_grid[grid_y][grid_x] = 3  # Mark as miss for simplicity
-            # Switch turns
+            self.enemy_grid[grid_y][grid_x] = 3
             self.my_turn = False
         else:
-            self.send_to_peer(f"ATTACK {grid_x} {grid_y}")
+            self.send_message_to_server(f"ATTACK {grid_x} {grid_y}")
+        self.moves += 1
 
     def check_game_over(self):
         # If all ships have no remaining cells, game over
@@ -199,7 +279,44 @@ class Game:
             self.message_log.add_message("Game over.")
             return
 
-        if x < GRID_ORIGIN[0]:
+        # **Define enemy grid boundaries**
+        enemy_grid_offset_x = GRID_ORIGIN[0] - GRID_SIZE * CELL_SIZE - 50
+        enemy_grid_x_start = enemy_grid_offset_x
+        enemy_grid_x_end = enemy_grid_x_start + GRID_SIZE * CELL_SIZE
+        enemy_grid_y_start = GRID_ORIGIN[1]
+        enemy_grid_y_end = enemy_grid_y_start + GRID_SIZE * CELL_SIZE
+
+        # **Define player's grid boundaries**
+        player_grid_x_start = GRID_ORIGIN[0]
+        player_grid_x_end = player_grid_x_start + GRID_SIZE * CELL_SIZE
+        player_grid_y_start = GRID_ORIGIN[1]
+        player_grid_y_end = player_grid_y_start + GRID_SIZE * CELL_SIZE
+
+        # **Define ship selection area boundary**
+        ship_selection_x_end = 150  # Ship selection area starts at x=50 and width=100
+
+        if enemy_grid_x_start <= x < enemy_grid_x_end and enemy_grid_y_start <= y < enemy_grid_y_end:
+            # **Clicked on the enemy grid**
+            if not self.all_ships_placed():
+                self.message_log.add_message("Place all your ships first.")
+                return
+            if not self.game_started:
+                self.message_log.add_message("Waiting for both players to be ready.")
+                return
+            if not self.my_turn:
+                self.message_log.add_message("It's not your turn.")
+                return
+            grid_x = (x - enemy_grid_x_start) // CELL_SIZE
+            grid_y = (y - enemy_grid_y_start) // CELL_SIZE
+            if 0 <= grid_x < GRID_SIZE and 0 <= grid_y < GRID_SIZE:
+                if self.enemy_grid[grid_y][grid_x] == 0:
+                    self.send_attack(grid_x, grid_y)
+                    # Turn will switch after handling the result
+                else:
+                    self.message_log.add_message("You have already attacked this cell.")
+            else:
+                self.message_log.add_message("Click within the grid area.")
+        elif x < ship_selection_x_end:
             # Clicked on the left side (ship selection area)
             y_offset = 50
             for ship in self.available_ships:
@@ -210,25 +327,12 @@ class Game:
                     self.update_hovered_cells()
                     break
                 y_offset += 40
-        else:
-            # Clicked on the grid area
+        elif player_grid_x_start <= x < player_grid_x_end and player_grid_y_start <= y < player_grid_y_end:
+            # Clicked on the player's grid
             grid_x = (x - GRID_ORIGIN[0]) // CELL_SIZE
             grid_y = (y - GRID_ORIGIN[1]) // CELL_SIZE
 
-            if self.all_ships_placed():
-                # Attack phase
-                if not self.my_turn:
-                    self.message_log.add_message("It's not your turn.")
-                    return
-                if 0 <= grid_x < GRID_SIZE and 0 <= grid_y < GRID_SIZE:
-                    if self.enemy_grid[grid_y][grid_x] == 0:
-                        self.send_attack(grid_x, grid_y)
-                        self.my_turn = True if self.local_test else False
-                    else:
-                        self.message_log.add_message("You have already attacked this cell.")
-                else:
-                    self.message_log.add_message("Click within the grid area.")
-            else:
+            if not self.all_ships_placed():
                 # Ship placement phase
                 if self.selected_ship:
                     if self.valid_placement:
@@ -239,15 +343,25 @@ class Game:
                         self.selected_ship = None
                         self.hovered_cells = []
                         self.valid_placement = False
-                        # Notify peer when all ships are placed
+                        # Notify when all ships are placed
                         if self.all_ships_placed():
-                            if not self.local_test:
-                                self.send_to_peer("ALL_SHIPS_PLACED")
+                            self.my_ships_ready = True
                             self.message_log.add_message("All ships placed. Waiting for opponent.")
+                            if not self.local_test:
+                                self.send_message_to_server("ALL_SHIPS_PLACED")
+                            if self.opponent_ready:
+                                self.game_started = True
+                                self.message_log.add_message("Both players are ready. Game starts now!")
                     else:
                         self.message_log.add_message("Cannot place ship here.")
                 else:
                     self.message_log.add_message("No ship selected.")
+            else:
+                # All ships placed
+                self.message_log.add_message("All ships placed. Attack the enemy by clicking on their grid.")
+        else:
+            # Clicked elsewhere
+            self.message_log.add_message("Click within the grid area or select a ship.")
 
     def all_ships_placed(self):
         return len(self.placed_ships) == len(SHIP_SIZES)
@@ -261,6 +375,16 @@ class Game:
             return  # No ship selected, nothing to update
 
         x, y = self.mouse_pos
+
+        # **Only update if mouse is over player's grid**
+        player_grid_x_start = GRID_ORIGIN[0]
+        player_grid_x_end = player_grid_x_start + GRID_SIZE * CELL_SIZE
+        player_grid_y_start = GRID_ORIGIN[1]
+        player_grid_y_end = player_grid_y_start + GRID_SIZE * CELL_SIZE
+
+        if not (player_grid_x_start <= x < player_grid_x_end and player_grid_y_start <= y < player_grid_y_end):
+            return  # Mouse not over player's grid
+
         grid_x = (x - GRID_ORIGIN[0]) // CELL_SIZE
         grid_y = (y - GRID_ORIGIN[1]) // CELL_SIZE
 
@@ -324,7 +448,18 @@ class Game:
 
     def handle_mouse_motion(self, pos):
         self.mouse_pos = pos
-        self.update_hovered_cells()
+        x, y = pos
+        # **Only update hover if mouse is over player's grid**
+        player_grid_x_start = GRID_ORIGIN[0]
+        player_grid_x_end = player_grid_x_start + GRID_SIZE * CELL_SIZE
+        player_grid_y_start = GRID_ORIGIN[1]
+        player_grid_y_end = player_grid_y_start + GRID_SIZE * CELL_SIZE
+
+        if player_grid_x_start <= x < player_grid_x_end and player_grid_y_start <= y < player_grid_y_end:
+            self.update_hovered_cells()
+        else:
+            self.hovered_cells = []
+            self.valid_placement = False
 
     def rotate_ship(self):
         # Rotate the ship orientation
@@ -386,7 +521,7 @@ class Game:
     #whole function deals only with ship text to the side of the grid
     def draw_ships(self, surface):
         # Display the list of available ships on the left
-        #print(self.available_ships)
+        # !!! DISPLAY SCORE BELOW SHIP LIST !!!
         y_offset = 50
         for ship in self.available_ships:
             text_surface = self.small_font.render(ship, True, BLACK)
@@ -394,17 +529,36 @@ class Game:
             ship_rect = text_surface.get_rect()
             ship_rect.topleft = (50, y_offset)
             surface.blit(text_surface, text_rect)
-            #this is indeed where the text is to the side of the grid
-            #surface.blit(darktileimg, text_rect) #pov: ollie is poking things with a stick to see what happens
             y_offset += 40
 
         # Highlight the selected ship TEXT FROM THE MENU
         if self.selected_ship:
             index = self.available_ships.index(self.selected_ship)
             highlight_rect = pygame.Rect(45, 50 + index * 40, 110, 30)
-            #ADDS RED BOX AROUND TEXT
             pygame.draw.rect(surface, RED, highlight_rect, 2)
-            
+
+        # Display scores below the ship list
+        y_offset += 20  # Add some space before the scores
+
+        # Base Score
+        base_score = self.base_points()
+        base_score_text = self.small_font.render(f"Base Score: {base_score}", True, BLACK)
+        base_score_rect = base_score_text.get_rect(topleft=(50, y_offset))
+        surface.blit(base_score_text, base_score_rect)
+        y_offset += 30
+
+        # Accuracy
+        accuracy = self.hit_accuracy_percent()
+        accuracy_text = self.small_font.render(f"Accuracy: {accuracy}%", True, BLACK)
+        accuracy_rect = accuracy_text.get_rect(topleft=(50, y_offset))
+        surface.blit(accuracy_text, accuracy_rect)
+        y_offset += 30
+
+        # Total Score
+        total_score = self.total_points()
+        total_score_text = self.small_font.render(f"Total Score: {total_score}", True, BLACK)
+        total_score_rect = total_score_text.get_rect(topleft=(50, y_offset))
+        surface.blit(total_score_text, total_score_rect)
 
     def draw_enemy_grid(self, surface):
         # Draw the enemy grid (for testing, draw it next to the player's grid)
@@ -432,9 +586,14 @@ class Game:
 
     def draw_status(self, surface):
         # Display whose turn it is and game status
-        status_text = "Your turn" if self.my_turn else "Opponent's turn"
         if self.game_over:
             status_text = f"Game Over! Winner: {self.winner}"
+        elif not self.game_started:
+            status_text = "Waiting for both players to be ready..."
+        elif self.my_turn:
+            status_text = "Your turn - Click on the enemy grid to attack."
+        else:
+            status_text = "Opponent's turn - Please wait."
         text_surface = self.small_font.render(status_text, True, BLACK)
         surface.blit(text_surface, (WINDOW_WIDTH // 2 - text_surface.get_width() // 2, 10))
 
@@ -447,11 +606,24 @@ class Game:
         self.message_log.draw(surface)
 
     def run(self):
+        if self.is_host:
+            while not self.client_joined and self.running:
+                self.message_log.add_message("Waiting for a player to join...")
+                pygame.time.delay(1000)
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        self.running = False
+                        if self.conn:
+                            self.conn.close()
+                        pygame.quit()
+                        sys.exit()
         while self.running:
             self.window.fill(LIGHT_GRAY)
             self.window.blit(gamebackground, (0,0))
             self.mouse_pos = pygame.mouse.get_pos()
-            self.update_hovered_cells()
+
+            # **Moved update_hovered_cells() call to handle_mouse_motion**
+            # self.update_hovered_cells()
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -463,12 +635,16 @@ class Game:
                 elif event.type == pygame.MOUSEMOTION:
                     self.handle_mouse_motion(event.pos)
                 elif event.type == pygame.MOUSEBUTTONDOWN:
-                    if event.button == 4 or event.button == 5:  # Mouse wheel
+                    if event.button == 4 or event.button == 5: # Mouse Wheel
                         self.rotate_ship()
                         self.update_hovered_cells()
-                    elif event.button == 1:  # Left click
+                    elif event.button == 1:
                         self.handle_click(event.pos)
 
             self.draw(self.window)
-            self.update_hovered_cells()
+            #self.update_hovered_cells()
             pygame.display.flip()
+
+        # Clean up connection after game ends
+        if self.conn:
+            self.conn.close()
