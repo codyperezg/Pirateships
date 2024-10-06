@@ -5,13 +5,15 @@ import sys
 import socket
 import threading
 from constants import *
-from ui_elements import Button
+from ui_elements import Button, drawTitle
 from menu import RoomSelectionMenu
 from game import Game
 
 # Initialize Pygame
 pygame.init()
 
+shipboardbackground = pygame.image.load("titlebackground.png")
+shipboardbackground = pygame.transform.scale(shipboardbackground, (WINDOW_WIDTH, WINDOW_HEIGHT))
 # Fonts (initialize after pygame.init())
 font = pygame.font.SysFont(None, 48)
 small_font = pygame.font.SysFont(None, 24)
@@ -21,7 +23,7 @@ window = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 pygame.display.set_caption('Battleship')
 
 # Networking settings
-SERVER_HOST = '127.0.0.1'  # Replace with your server's IP address
+SERVER_HOST = '34.42.18.51'  # Replace with your server's IP address
 SERVER_PORT = 5555
 
 # Networking client class
@@ -88,18 +90,21 @@ def select_room():
         print("No room selected.")
 
 def join_room(room_name):
+    print("Joining room...")
     network_client.connect_to_server()  # Ensure we are connected
-    response = network_client.send_command(f"GET_ROOM {room_name}")
-    if response and response.startswith("ROOM_INFO"):
-        _, host_ip, host_port = response.split()
-        print(f"Connecting to room '{room_name}' at {host_ip}:{host_port}")
-        # Start the game as client, connecting to the host
-        game = Game(window=window, small_font=small_font, network_client=network_client, is_host=False, peer_ip=host_ip, peer_port=host_port)
+    response = network_client.send_command(f"JOIN_ROOM {room_name}")
+    if response and response.startswith("JOINED_ROOM"):
+        print(f"Joined room '{room_name}'.")
+        # Start the game as client
+        game = Game(window=window, small_font=small_font, network_client=network_client, is_host=False)
         game.run()
+        # Close the connection after the game ends
+        network_client.close_connection()
     else:
         print("Failed to join room.")
-    network_client.close_connection()
+        network_client.close_connection()
 
+    
 def test_game():
     print("Local Test clicked")
     # Start the game without connecting to the network
@@ -107,14 +112,15 @@ def test_game():
     game.run()
 
 # Create buttons with the font
-create_room_button = Button('Create Room', (WINDOW_WIDTH // 2 - 100, 200), create_room, font)
-select_room_button = Button('Select Room', (WINDOW_WIDTH // 2 - 100, 300), select_room, font)
-test_game_button = Button('Local Test', (WINDOW_WIDTH // 2 - 100, 400), test_game, font)
+create_room_button = Button('Create Room', (WINDOW_WIDTH // 2 - 100, 250), create_room, font, "create")
+select_room_button = Button('Select Room', (WINDOW_WIDTH // 2 - 100, 350), select_room, font, "join")
+test_game_button = Button('Local Test', (WINDOW_WIDTH // 2 - 100, 500), test_game, font, "localtest")
 
 # Main loop
 def main_menu():
     while True:
         window.fill(GRAY)
+        window.blit(shipboardbackground, (0,0))
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -128,6 +134,7 @@ def main_menu():
                 select_room_button.check_click(pos)
                 test_game_button.check_click(pos)
 
+        drawTitle(window)
         create_room_button.draw(window)
         select_room_button.draw(window)
         test_game_button.draw(window)
