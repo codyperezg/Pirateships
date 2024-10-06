@@ -33,6 +33,8 @@ class Game:
         self.opponent_ready = False
         self.game_started = False
         self.client_joined = False
+        self.hits = 0
+        self.moves = 0
 
         if self.local_test:
             self.my_turn = True
@@ -115,7 +117,7 @@ class Game:
         if self.conn:
             try:
                 command = f"MESSAGE {message}"
-                self.conn.sendall(command.encode())
+                self.conn.sendall(command.encode('utf-8'))
             except Exception as e:
                 print(f"Failed to send message: {e}")
 
@@ -126,6 +128,7 @@ class Game:
             self.my_turn = False
         else:
             self.send_message_to_server(f"ATTACK {grid_x} {grid_y}")
+        self.moves += 1
 
     def handle_attack(self, grid_x, grid_y):
         # Check if any ship occupies this cell
@@ -164,6 +167,8 @@ class Game:
     def handle_result(self, grid_x, grid_y, hit_or_miss, ship_sunk):
         # Update enemy grid
         self.enemy_grid[grid_y][grid_x] = 2 if hit_or_miss == 'HIT' else 3  # 2: Hit, 3: Miss
+        if hit_or_miss == 'HIT':
+            self.hits += 1
         if ship_sunk:
             self.message_log.add_message(f"You sunk the opponent's {ship_sunk}!")
         elif hit_or_miss == 'HIT':
@@ -174,6 +179,25 @@ class Game:
         # Switch turns
         self.my_turn = False
 
+        # Creates a function to scale both players' scores by the 10,000s
+    def base_points(hits):
+        basePoints=hits*10000
+        return basePoints
+
+    # Creates a function to define accuracy for both players
+    def hit_accuracy_percent(hits,moves):
+        print(hits)
+        print(moves)
+        accuracy = (float(hits) / float(moves)) * 100
+        return round(accuracy,2)
+                                
+    # Creates a bonus-points system, using a function, based on both players' accuracy
+    def total_points(hits,hitAccuracy):
+        basePoints=hits*10000
+        bonus=hits*hitAccuracy
+        total_points=bonus+basePoints
+        return int(total_points)
+    
     def check_game_over(self):
         # If all ships have no remaining cells, game over
         return all(not info['cells'] for info in self.placed_ships.values())
@@ -379,6 +403,7 @@ class Game:
 
     def draw_ships(self, surface):
         # Display the list of available ships on the left
+        # !!! DISPLAY SCORE BELOW SHIP LIST !!!
         y_offset = 50
         for ship in self.available_ships:
             text_surface = self.small_font.render(ship, True, BLACK)
@@ -393,6 +418,29 @@ class Game:
             index = self.available_ships.index(self.selected_ship)
             highlight_rect = pygame.Rect(45, 50 + index * 40, 110, 30)
             pygame.draw.rect(surface, RED, highlight_rect, 2)
+
+        # Display scores below the ship list
+        y_offset += 20  # Add some space before the scores
+
+        # Base Score
+        base_score = self.base_points()
+        base_score_text = self.small_font.render(f"Base Score: {base_score}", True, BLACK)
+        base_score_rect = base_score_text.get_rect(topleft=(50, y_offset))
+        surface.blit(base_score_text, base_score_rect)
+        y_offset += 30
+
+        # Accuracy
+        accuracy = self.hit_accuracy_percent()
+        accuracy_text = self.small_font.render(f"Accuracy: {accuracy}%", True, BLACK)
+        accuracy_rect = accuracy_text.get_rect(topleft=(50, y_offset))
+        surface.blit(accuracy_text, accuracy_rect)
+        y_offset += 30
+
+        # Total Score
+        total_score = self.total_points()
+        total_score_text = self.small_font.render(f"Total Score: {total_score}", True, BLACK)
+        total_score_rect = total_score_text.get_rect(topleft=(50, y_offset))
+        surface.blit(total_score_text, total_score_rect)
 
     def draw_enemy_grid(self, surface):
         # Draw the enemy grid (left side)

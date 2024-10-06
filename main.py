@@ -44,8 +44,8 @@ class NetworkClient:
     def send_command(self, command):
         if self.sock:
             try:
-                self.sock.sendall(command.encode())
-                response = self.sock.recv(1024).decode()
+                self.sock.sendall(command.encode('utf-8'))
+                response = self.sock.recv(1024).decode('utf-8')
                 return response
             except Exception as e:
                 print(f"Communication error: {e}")

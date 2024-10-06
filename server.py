@@ -15,7 +15,14 @@ def handle_client(conn, addr):
             data = conn.recv(1024).decode()
             if not data:
                 break
-
+            try:
+                decoded_data = data.decode('utf-8')
+            except UnicodeDecodeError as e:
+                print(f"UnicodeDecodeError: {e}")
+                print(f"Raw data received: {data}")
+                # Optionally, you can close the connection or continue based on your needs
+                break
+            # Proceed with the decoded data
             command_parts = data.strip().split(' ')
             command = command_parts[0]
             params = command_parts[1:]
