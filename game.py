@@ -6,11 +6,7 @@ import threading
 import socket
 import sys
 from message_log import MessageLog
-
-# Grid positions
-ENEMY_GRID_ORIGIN = (50, GRID_ORIGIN[1])  # Left side
-PLAYER_GRID_ORIGIN = (WINDOW_WIDTH - GRID_SIZE * CELL_SIZE - 50, GRID_ORIGIN[1])  # Right side
-
+# Any other necessary imports
 
 class Game:
     def __init__(self, window, small_font, network_client=None, is_host=False, local_test=False):
@@ -189,81 +185,62 @@ class Game:
             self.message_log.add_message("Game over.")
             return
 
-        # Check if click is within the enemy grid (left side)
-        if ENEMY_GRID_ORIGIN[0] <= x < ENEMY_GRID_ORIGIN[0] + GRID_SIZE * CELL_SIZE and \
-        ENEMY_GRID_ORIGIN[1] <= y < ENEMY_GRID_ORIGIN[1] + GRID_SIZE * CELL_SIZE:
-            # Attack phase
-            if not self.all_ships_placed():
-                self.message_log.add_message("Place all your ships first.")
-                return
-            if not self.game_started:
-                self.message_log.add_message("Waiting for both players to be ready.")
-                return
-            if not self.my_turn:
-                self.message_log.add_message("It's not your turn.")
-                return
-            grid_x = int((x - ENEMY_GRID_ORIGIN[0]) // CELL_SIZE)
-            grid_y = int((y - ENEMY_GRID_ORIGIN[1]) // CELL_SIZE)
-            if self.enemy_grid[grid_y][grid_x] == 0:
-                self.send_attack(grid_x, grid_y)
-                # Turn will switch after handling the result
-            else:
-                self.message_log.add_message("You have already attacked this cell.")
-        # Check if click is within the player's grid (right side)
-        elif PLAYER_GRID_ORIGIN[0] <= x < PLAYER_GRID_ORIGIN[0] + GRID_SIZE * CELL_SIZE and \
-            PLAYER_GRID_ORIGIN[1] <= y < PLAYER_GRID_ORIGIN[1] + GRID_SIZE * CELL_SIZE:
+        if x < GRID_ORIGIN[0]:
+            # Clicked on the left side (ship selection area)
+            y_offset = 50
+            for ship in self.available_ships:
+                ship_rect = pygame.Rect(50, y_offset, 100, 30)
+                if ship_rect.collidepoint(pos):
+                    self.selected_ship = ship
+                    self.message_log.add_message(f"Selected ship: {self.selected_ship}")
+                    self.update_hovered_cells()
+                    break
+                y_offset += 40
+        else:
+            # Clicked on the grid area
+            grid_x = (x - GRID_ORIGIN[0]) // CELL_SIZE
+            grid_y = (y - GRID_ORIGIN[1]) // CELL_SIZE
+
             if not self.all_ships_placed():
                 # Ship placement phase
-                self.handle_ship_placement_click(x, y)
+                if self.selected_ship:
+                    if self.valid_placement:
+                        # Place the ship
+                        self.place_ship()
+                        self.message_log.add_message(f"Placed {self.selected_ship}")
+                        self.available_ships.remove(self.selected_ship)
+                        self.selected_ship = None
+                        self.hovered_cells = []
+                        self.valid_placement = False
+                        # Notify when all ships are placed
+                        if self.all_ships_placed():
+                            self.my_ships_ready = True
+                            self.message_log.add_message("All ships placed. Waiting for opponent.")
+                            if not self.local_test:
+                                self.send_message_to_server("ALL_SHIPS_PLACED")
+                            if self.opponent_ready:
+                                self.game_started = True
+                                self.message_log.add_message("Both players are ready. Game starts now!")
+                    else:
+                        self.message_log.add_message("Cannot place ship here.")
+                else:
+                    self.message_log.add_message("No ship selected.")
             else:
-                # Ignore clicks on player's grid after ships are placed
-                self.message_log.add_message("All ships placed. Attack the enemy by clicking on their grid.")
-        else:
-            # Clicked elsewhere, maybe on ship selection
-            self.handle_ship_selection_click(pos)
-
-
-
-    def handle_ship_placement_click(self, x, y):
-        if self.selected_ship:
-            self.update_hovered_cells()
-            if self.valid_placement:
-                # Place the ship
-                self.place_ship()
-                self.message_log.add_message(f"Placed {self.selected_ship}")
-                self.available_ships.remove(self.selected_ship)
-                self.selected_ship = None
-                self.hovered_cells = []
-                self.valid_placement = False
-                # Notify when all ships are placed
-                if self.all_ships_placed():
-                    self.my_ships_ready = True
-                    self.message_log.add_message("All ships placed. Waiting for opponent.")
-                    if not self.local_test:
-                        self.send_message_to_server("ALL_SHIPS_PLACED")
-                    if self.opponent_ready:
-                        self.game_started = True
-                        self.message_log.add_message("Both players are ready. Game starts now!")
-            else:
-                self.message_log.add_message("Cannot place ship here.")
-        else:
-            self.message_log.add_message("No ship selected.")
-
-
-    def handle_ship_selection_click(self, pos):
-        x, y = pos
-        # Ship selection area (adjust coordinates as needed)
-        y_offset = 50
-        ship_selection_x = PLAYER_GRID_ORIGIN[0] + GRID_SIZE * CELL_SIZE + 20  # To the right of player's grid
-        for ship in self.available_ships:
-            ship_rect = pygame.Rect(ship_selection_x, y_offset, 100, 30)
-            if ship_rect.collidepoint(pos):
-                self.selected_ship = ship
-                self.message_log.add_message(f"Selected ship: {self.selected_ship}")
-                self.update_hovered_cells()
-                break
-            y_offset += 40
-
+                # Attack phase
+                if not self.game_started:
+                    self.message_log.add_message("Waiting for both players to be ready.")
+                    return
+                if not self.my_turn:
+                    self.message_log.add_message("It's not your turn.")
+                    return
+                if 0 <= grid_x < GRID_SIZE and 0 <= grid_y < GRID_SIZE:
+                    if self.enemy_grid[grid_y][grid_x] == 0:
+                        self.send_attack(grid_x, grid_y)
+                        # Turn will switch after handling the result
+                    else:
+                        self.message_log.add_message("You have already attacked this cell.")
+                else:
+                    self.message_log.add_message("Click within the grid area.")
 
     def all_ships_placed(self):
         return len(self.placed_ships) == len(SHIP_SIZES)
@@ -277,8 +254,8 @@ class Game:
             return  # No ship selected, nothing to update
 
         x, y = self.mouse_pos
-        grid_x = (x - PLAYER_GRID_ORIGIN[0]) // CELL_SIZE
-        grid_y = (y - PLAYER_GRID_ORIGIN[1]) // CELL_SIZE
+        grid_x = (x - GRID_ORIGIN[0]) // CELL_SIZE
+        grid_y = (y - GRID_ORIGIN[1]) // CELL_SIZE
 
         ship_length = SHIP_SIZES[self.selected_ship]
         cells = []
@@ -303,12 +280,9 @@ class Game:
         self.hovered_cells = cells
         self.valid_placement = True
 
-
     def handle_mouse_motion(self, pos):
         self.mouse_pos = pos
-        if not self.all_ships_placed():
-            self.update_hovered_cells()
-
+        self.update_hovered_cells()
 
     def rotate_ship(self):
         # Rotate the ship orientation
@@ -332,16 +306,18 @@ class Game:
         for row in range(GRID_SIZE):
             for col in range(GRID_SIZE):
                 rect = pygame.Rect(
-                    PLAYER_GRID_ORIGIN[0] + col * CELL_SIZE,
-                    PLAYER_GRID_ORIGIN[1] + row * CELL_SIZE,
+                    GRID_ORIGIN[0] + col * CELL_SIZE,
+                    GRID_ORIGIN[1] + row * CELL_SIZE,
                     CELL_SIZE,
                     CELL_SIZE
                 )
+                # Check if this cell is in hovered_cells
                 if (col, row) in self.hovered_cells:
                     if self.valid_placement:
                         color = (0, 255, 0, 100)  # Semi-transparent green
                     else:
                         color = (255, 0, 0, 100)  # Semi-transparent red
+                    # Create a semi-transparent surface
                     highlight_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
                     highlight_surface.fill(color)
                     surface.blit(highlight_surface, rect.topleft)
@@ -353,44 +329,31 @@ class Game:
                     pygame.draw.rect(surface, WHITE, rect)  # Miss
                 pygame.draw.rect(surface, BLACK, rect, 1)  # Draw grid lines
 
-        # Label the player's grid
-        label_text = self.small_font.render("Your Grid", True, BLACK)
-        surface.blit(
-            label_text,
-            (
-                PLAYER_GRID_ORIGIN[0] + GRID_SIZE * CELL_SIZE // 2 - label_text.get_width() // 2,
-                PLAYER_GRID_ORIGIN[1] - 30
-            )
-        )
-
     def draw_ships(self, surface):
-        # Display the list of available ships on the right
+        # Display the list of available ships on the left
         y_offset = 50
-        ship_selection_x = PLAYER_GRID_ORIGIN[0] + GRID_SIZE * CELL_SIZE + 20  # Adjust as needed
         for ship in self.available_ships:
             text_surface = self.small_font.render(ship, True, BLACK)
-            text_rect = text_surface.get_rect(topleft=(ship_selection_x, y_offset))
+            text_rect = text_surface.get_rect(topleft=(50, y_offset))
+            ship_rect = text_surface.get_rect()
+            ship_rect.topleft = (50, y_offset)
             surface.blit(text_surface, text_rect)
             y_offset += 40
 
         # Highlight the selected ship
         if self.selected_ship:
             index = self.available_ships.index(self.selected_ship)
-            highlight_rect = pygame.Rect(
-                ship_selection_x - 5,
-                50 + index * 40,
-                110,
-                30
-            )
+            highlight_rect = pygame.Rect(45, 50 + index * 40, 110, 30)
             pygame.draw.rect(surface, RED, highlight_rect, 2)
 
-
     def draw_enemy_grid(self, surface):
+        # Draw the enemy grid (for testing, draw it next to the player's grid)
+        offset_x = GRID_ORIGIN[0] - GRID_SIZE * CELL_SIZE - 50
         for row in range(GRID_SIZE):
             for col in range(GRID_SIZE):
                 rect = pygame.Rect(
-                    ENEMY_GRID_ORIGIN[0] + col * CELL_SIZE,
-                    ENEMY_GRID_ORIGIN[1] + row * CELL_SIZE,
+                    offset_x + col * CELL_SIZE,
+                    GRID_ORIGIN[1] + row * CELL_SIZE,
                     CELL_SIZE,
                     CELL_SIZE
                 )
@@ -402,13 +365,7 @@ class Game:
 
         # Label the enemy grid
         label_text = self.small_font.render("Enemy Grid", True, BLACK)
-        surface.blit(
-            label_text,
-            (
-                ENEMY_GRID_ORIGIN[0] + GRID_SIZE * CELL_SIZE // 2 - label_text.get_width() // 2,
-                ENEMY_GRID_ORIGIN[1] - 30
-            )
-        )
+        surface.blit(label_text, (offset_x + GRID_SIZE * CELL_SIZE // 2 - label_text.get_width() // 2, GRID_ORIGIN[1] - 30))
 
     def draw_status(self, surface):
         # Display whose turn it is and game status
