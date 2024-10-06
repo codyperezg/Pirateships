@@ -12,11 +12,11 @@ def handle_client(conn, addr):
     current_room = None
     try:
         while True:
-            data = conn.recv(1024)
+            data = conn.recv(1024).decode()
             if not data:
                 break
             try:
-                decoded_data = data.decode('utf-8')
+                decoded_data = data
             except UnicodeDecodeError as e:
                 print(f"UnicodeDecodeError: {e}")
                 print(f"Raw data received: {data}")
