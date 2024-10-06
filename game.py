@@ -453,9 +453,11 @@ class Game:
                                 # Middle parts
                                 surface.blit(boatmid, rect.topleft)
                         else:  # Vertical orientation
+                            # Define rotateboatend once for use in all cases
+                            rotateboatend = pygame.transform.rotate(boatbutt, 270)
+                            
                             if part_index == 1:
                                 # Front (top end)
-                                rotateboatend = pygame.transform.rotate(boatbutt, 270)
                                 surface.blit(rotateboatend, rect.topleft)
                             elif part_index == ship_length:
                                 # Back (bottom end)
@@ -465,6 +467,7 @@ class Game:
                                 # Middle parts
                                 rotateboatmid = pygame.transform.rotate(boatmid, 90)
                                 surface.blit(rotateboatmid, rect.topleft)
+
                     else:
                         # Cell was removed; optionally, you can render a different image or leave it as water
                         pass
