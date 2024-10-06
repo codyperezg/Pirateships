@@ -5,13 +5,15 @@ import sys
 import socket
 import threading
 from constants import *
-from ui_elements import Button
+from ui_elements import Button, drawTitle
 from menu import RoomSelectionMenu
 from game import Game
 
 # Initialize Pygame
 pygame.init()
 
+shipboardbackground = pygame.image.load("titlebackground.png")
+shipboardbackground = pygame.transform.scale(shipboardbackground, (WINDOW_WIDTH, WINDOW_HEIGHT))
 # Fonts (initialize after pygame.init())
 font = pygame.font.SysFont(None, 48)
 small_font = pygame.font.SysFont(None, 24)
@@ -110,14 +112,15 @@ def test_game():
     game.run()
 
 # Create buttons with the font
-create_room_button = Button('Create Room', (WINDOW_WIDTH // 2 - 100, 200), create_room, font)
-select_room_button = Button('Select Room', (WINDOW_WIDTH // 2 - 100, 300), select_room, font)
-test_game_button = Button('Local Test', (WINDOW_WIDTH // 2 - 100, 400), test_game, font)
+create_room_button = Button('Create Room', (WINDOW_WIDTH // 2 - 100, 250), create_room, font, "create")
+select_room_button = Button('Select Room', (WINDOW_WIDTH // 2 - 100, 350), select_room, font, "join")
+test_game_button = Button('Local Test', (WINDOW_WIDTH // 2 - 100, 500), test_game, font, "localtest")
 
 # Main loop
 def main_menu():
     while True:
         window.fill(GRAY)
+        window.blit(shipboardbackground, (0,0))
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -131,6 +134,7 @@ def main_menu():
                 select_room_button.check_click(pos)
                 test_game_button.check_click(pos)
 
+        drawTitle(window)
         create_room_button.draw(window)
         select_room_button.draw(window)
         test_game_button.draw(window)

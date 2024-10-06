@@ -2,6 +2,7 @@
 
 import pygame
 from constants import *
+from constants import SHIP_SIZES as hjkhfgdjkh
 import threading
 import socket
 import sys
@@ -9,7 +10,7 @@ from message_log import MessageLog
 # Any other necessary imports
 
 
-#REMEMbER for safety hit a .set_alpha() before using an img because it gets changed throughout the code
+#REMEMbER for safety hit a .set_alpha() before using a tile img because it gets changed throughout the code
 #255 max is fully opaque image
 tileimg = pygame.image.load("oceanTile.png")
 tileimg = pygame.transform.scale(tileimg, (CELL_SIZE - 1,CELL_SIZE - 1))
@@ -19,6 +20,8 @@ darktileimg = pygame.transform.scale(darktileimg, (CELL_SIZE - 1,CELL_SIZE - 1))
 boatbutt = pygame.image.load("boatend.png")
 boatmid = pygame.image.load("boatmid.png")
 
+gamebackground = pygame.image.load("gamebackground.png")
+gamebackground = pygame.transform.scale(gamebackground, (WINDOW_WIDTH, WINDOW_HEIGHT))
 # Game class
 class Game:
     def __init__(self, window, small_font, network_client=None, is_host=False, peer_ip=None, peer_port=None, local_test=False):
@@ -383,6 +386,7 @@ class Game:
     #whole function deals only with ship text to the side of the grid
     def draw_ships(self, surface):
         # Display the list of available ships on the left
+        #print(self.available_ships)
         y_offset = 50
         for ship in self.available_ships:
             text_surface = self.small_font.render(ship, True, BLACK)
@@ -418,6 +422,9 @@ class Game:
                 elif self.enemy_grid[row][col] == 3:
                     pygame.draw.rect(surface, WHITE, rect)  # Miss
                 pygame.draw.rect(surface, BLACK, rect, 1)  # Draw grid lines
+                
+                #This places the background water image onto the grid tiles
+                surface.blit(tileimg, (offset_x + col * CELL_SIZE, GRID_ORIGIN[1] + row * CELL_SIZE))
 
         # Label the enemy grid
         label_text = self.small_font.render("Enemy Grid", True, BLACK)
@@ -442,6 +449,7 @@ class Game:
     def run(self):
         while self.running:
             self.window.fill(LIGHT_GRAY)
+            self.window.blit(gamebackground, (0,0))
             self.mouse_pos = pygame.mouse.get_pos()
             self.update_hovered_cells()
 
