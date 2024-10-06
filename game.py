@@ -105,69 +105,6 @@ class Game:
             self.running = False
         else:
             print(f"Unknown command received: {command}")
-    #def start_host(self):
-    #    threading.Thread(target=self.host_listener, daemon=True).start()
-
-    #def host_listener(self):
-    #    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    #        s.bind(('', 0))  # Bind to any free port
-    #        s.listen()
-    #        host_ip = socket.gethostbyname(socket.gethostname())
-    #        host_port = s.getsockname()[1]
-    #        print(f"Hosting game on {host_ip}:{host_port}")
-    #        # Update the server with the correct port
-    #        if self.network_client:
-    #            self.network_client.connect_to_server()
-    #            self.network_client.send_command(f"UPDATE_ROOM_PORT {host_port}")
-    #            self.network_client.close_connection()
-    #        # Accept a connection from the peer
-    #        self.conn, addr = s.accept()
-    #        print(f"Player connected from {addr}")
-    #        self.peer_thread = threading.Thread(target=self.handle_peer_messages, daemon=True)
-    #        self.peer_thread.start()
-
-    #def connect_to_host(self):
-    #    print(f"Connecting to host at {self.peer_ip}:{self.peer_port}")
-    #    self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #    self.conn.connect((self.peer_ip, int(self.peer_port)))
-    #    self.peer_thread = threading.Thread(target=self.handle_peer_messages, daemon=True)
-    #    self.peer_thread.start()
-
-    #def handle_peer_messages(self):
-    #    try:
-    #        while True:
-    #            data = self.conn.recv(1024).decode()
-    #            if data:
-    #                print(f"Received from peer: {data}")
-    #                # Parse the message and handle accordingly
-    #                self.parse_message(data)
-    #            else:
-    #                break
-    #    except ConnectionResetError:
-    #        print("Peer disconnected.")
-    #    finally:
-    #        if self.conn:
-    #            self.conn.close()
-
-    #def parse_message(self, data):
-    #    parts = data.strip().split(' ')
-    #    command = parts[0]
-
-    #    if command == 'ATTACK':
-    #        grid_x, grid_y = int(parts[1]), int(parts[2])
-    #        self.handle_attack(grid_x, grid_y)
-    #    elif command == 'RESULT':
-    #        grid_x, grid_y = int(parts[1]), int(parts[2])
-    #        hit_or_miss = parts[3]
-    #        ship_sunk = parts[4] if len(parts) > 4 else None
-    #        self.handle_result(grid_x, grid_y, hit_or_miss, ship_sunk)
-    #    elif command == 'GAME_OVER':
-    #        winner = parts[1]
-    #        self.game_over = True
-    #        self.winner = winner
-    #        self.message_log.add_message(f"Game over! Winner: {winner}")
-    #    else:
-    #        print(f"Unknown command received: {command}")
 
     def parse_message(self, data):
         parts = data.strip().split(' ')
@@ -202,6 +139,16 @@ class Game:
                 self.conn.sendall(command.encode('utf-8'))
             except Exception as e:
                 print(f"Failed to send message: {e}")
+                
+    def send_attack(self, grid_x, grid_y):
+        if self.local_test:
+            self.message_log.add_message(f"Attacked position ({grid_x}, {grid_y}) in local test mode.")
+            self.enemy_grid[grid_y][grid_x] = 3
+            self.my_turn = False
+        else:
+            self.send_message_to_server(f"ATTACK {grid_x} {grid_y}")
+        self.moves += 1
+
 
     def handle_attack(self, grid_x, grid_y):
         # Check if any ship occupies this cell
@@ -252,21 +199,26 @@ class Game:
         # Switch turns
         self.my_turn = False
 
-    #def send_to_peer(self, message):
-    #    if self.conn:
-    #        try:
-    #            self.conn.sendall(message.encode())
-    #        except Exception as e:
-    #            print(f"Failed to send message: {e}")
 
-    def send_attack(self, grid_x, grid_y):
-        if self.local_test:
-            self.message_log.add_message(f"Attacked position ({grid_x}, {grid_y}) in local test mode.")
-            self.enemy_grid[grid_y][grid_x] = 3
-            self.my_turn = False
-        else:
-            self.send_message_to_server(f"ATTACK {grid_x} {grid_y}")
-        self.moves += 1
+    # Creates a function to scale both players' scores by the 10,000s
+    def base_points(self):
+        basePoints = self.hits * 10000
+        return basePoints
+
+    # Creates a function to define accuracy for both players
+    def hit_accuracy_percent(self):
+        if self.moves == 0:
+            return 0.0
+        accuracy = (float(self.hits) / float(self.moves)) * 100
+        return round(accuracy, 2)
+                                
+    # Creates a bonus-points system, using a function, based on both players' accuracy
+    def total_points(self):
+        basePoints = self.base_points()
+        hitAccuracy = self.hit_accuracy_percent()
+        bonus = self.hits * hitAccuracy
+        total_points = bonus + basePoints
+        return int(total_points)
 
     def check_game_over(self):
         # If all ships have no remaining cells, game over
