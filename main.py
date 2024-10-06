@@ -105,16 +105,16 @@ def join_room(room_name):
         network_client.close_connection()
 
     
-def test_game():
-    print("Local Test clicked")
-    # Start the game without connecting to the network
-    game = Game(window=window, small_font=small_font, network_client=network_client, local_test=True)
-    game.run()
+#def test_game():
+#    print("Local Test clicked")
+#    # Start the game without connecting to the network
+#    game = Game(window=window, small_font=small_font, network_client=network_client, local_test=True)
+#    game.run()
 
 # Create buttons with the font
 create_room_button = Button('Create Room', (WINDOW_WIDTH // 2 - 100, 250), create_room, font, "create")
 select_room_button = Button('Select Room', (WINDOW_WIDTH // 2 - 100, 350), select_room, font, "join")
-test_game_button = Button('Local Test', (WINDOW_WIDTH // 2 - 100, 500), test_game, font, "localtest")
+#test_game_button = Button('Local Test', (WINDOW_WIDTH // 2 - 100, 500), test_game, font, "localtest")
 
 # Main loop
 def main_menu():
@@ -132,12 +132,12 @@ def main_menu():
                 pos = pygame.mouse.get_pos()
                 create_room_button.check_click(pos)
                 select_room_button.check_click(pos)
-                test_game_button.check_click(pos)
+                #test_game_button.check_click(pos)
 
         drawTitle(window)
         create_room_button.draw(window)
         select_room_button.draw(window)
-        test_game_button.draw(window)
+        #test_game_button.draw(window)
 
         pygame.display.flip()
 
