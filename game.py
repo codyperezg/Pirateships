@@ -54,6 +54,7 @@ class Game:
         self.client_joined = False
         self.hits = 0
         self.moves = 0
+        self.ship_cells = {} # Maps (row,col) to ship details
 
         if self.local_test:
             self.my_turn = True
@@ -328,7 +329,7 @@ class Game:
 
         x, y = self.mouse_pos
 
-        # **Only update if mouse is over player's grid**
+        # Only update if mouse is over player's grid
         player_grid_x_start = GRID_ORIGIN[0]
         player_grid_x_end = player_grid_x_start + GRID_SIZE * CELL_SIZE
         player_grid_y_start = GRID_ORIGIN[1]
@@ -358,45 +359,11 @@ class Game:
         for col, row in cells:
             if self.grid[row][col] != 0:
                 return  # Overlaps with existing ship
-        
-        
-        #THIS RENDERS THE BOATS
-        counter = 1
-        for cell in cells:
-            cellcoord2 = cell[0]
-            cellcoord1 = cell[1]
-            
-            if self.ship_orientation == "horizontal":
-                #front
-                if counter == 1:
-                    self.window.blit(boatbutt, matrix[cellcoord1][cellcoord2])
-                #back
-                elif counter == ship_length:
-                    flipboatendx = pygame.transform.flip(boatbutt, True, False)
-                    self.window.blit(flipboatendx, matrix[cellcoord1][cellcoord2])
-                #middle
-                else:
-                    self.window.blit(boatmid, matrix[cellcoord1][cellcoord2])
-            else:
-                """ #vertical ship orientation """
-                #front
-                if counter == 1:
-                    #flipboatendup = pygame.transform.flip(boatbutt, False, True)
-                    rotateboatend = pygame.transform.rotate(boatbutt, 270)
-                    self.window.blit(rotateboatend, matrix[cellcoord1][cellcoord2])
-                #end
-                elif counter == ship_length:
-                    flipboatenddown = pygame.transform.flip(rotateboatend, False, True)
-                    self.window.blit(flipboatenddown, matrix[cellcoord1][cellcoord2])
-                #middle
-                else:
-                    rotateboatmid = pygame.transform.rotate(boatmid, 90)
-                    self.window.blit(rotateboatmid, matrix[cellcoord1][cellcoord2])
-            counter += 1
 
         # If we reach here, placement is valid
         self.hovered_cells = cells
         self.valid_placement = True
+
 
     def handle_mouse_motion(self, pos):
         self.mouse_pos = pos
@@ -422,14 +389,22 @@ class Game:
         self.update_hovered_cells()
 
     def place_ship(self):
-        # Place the ship in the grid
-        for col, row in self.hovered_cells:
+        ship_length = SHIP_SIZES[self.selected_ship]
+        for index, (col, row) in enumerate(self.hovered_cells):
             self.grid[row][col] = 1
-        # Store the ship's position and orientation
+            # Store the ship details at this cell
+            self.ship_cells[(row, col)] = {
+                'ship_name': self.selected_ship,
+                'part_index': index + 1,  # 1-based index
+                'length': ship_length,
+                'orientation': self.ship_orientation
+            }
+        # Store the ship's overall position and orientation
         self.placed_ships[self.selected_ship] = {
             'cells': self.hovered_cells.copy(),
             'orientation': self.ship_orientation
         }
+
 
     def draw_grid(self, surface):
         global matrix
@@ -443,10 +418,8 @@ class Game:
                     CELL_SIZE
                 )
                 matrix[row][col] = rect
-                pygame.draw.rect(surface, BLACK, rect, 1)  # Draw grid lines
-                
-                #This places the background water image onto the grid tiles
-                surface.blit(tileimg, (GRID_ORIGIN[0] + col * CELL_SIZE, GRID_ORIGIN[1] + row * CELL_SIZE))
+                # Draw the water tile first
+                surface.blit(tileimg, rect.topleft)
                 # Check if this cell is in hovered_cells
                 if (col, row) in self.hovered_cells:
                     if self.valid_placement:
@@ -456,19 +429,56 @@ class Game:
                     # Create a semi-transparent surface
                     highlight_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
                     highlight_surface.fill(color)
-                    #surface.blit(highlight_surface, rect.topleft)
-                    #This highlights the ship hover and placement
-                    darktileimg.set_alpha(100)
-                    surface.blit(darktileimg, rect.topleft)
+                    surface.blit(highlight_surface, rect.topleft)
+                    # Optionally, you can draw a darker tile
+                    # darktileimg.set_alpha(100)
+                    # surface.blit(darktileimg, rect.topleft)
                 elif self.grid[row][col] == 1:
-                    #DRAW PLACED SHIP
-                    pygame.draw.rect(surface, LIGHT_BLUE, rect)
-                    darktileimg.set_alpha(255)
-                    surface.blit(darktileimg, rect.topleft)
+                    # Render the ship
+                    ship_info = self.ship_cells.get((row, col), None)
+                    if ship_info:
+                        ship_length = ship_info['length']
+                        part_index = ship_info['part_index']
+                        orientation = ship_info['orientation']
+
+                        if orientation == 'horizontal':
+                            if part_index == 1:
+                                # Front (left end)
+                                surface.blit(boatbutt, rect.topleft)
+                            elif part_index == ship_length:
+                                # Back (right end)
+                                flipboatendx = pygame.transform.flip(boatbutt, True, False)
+                                surface.blit(flipboatendx, rect.topleft)
+                            else:
+                                # Middle parts
+                                surface.blit(boatmid, rect.topleft)
+                        else:  # Vertical orientation
+                            if part_index == 1:
+                                # Front (top end)
+                                rotateboatend = pygame.transform.rotate(boatbutt, 270)
+                                surface.blit(rotateboatend, rect.topleft)
+                            elif part_index == ship_length:
+                                # Back (bottom end)
+                                flipboatenddown = pygame.transform.flip(rotateboatend, False, True)
+                                surface.blit(flipboatenddown, rect.topleft)
+                            else:
+                                # Middle parts
+                                rotateboatmid = pygame.transform.rotate(boatmid, 90)
+                                surface.blit(rotateboatmid, rect.topleft)
+                    else:
+                        # Fallback in case ship_info is missing
+                        darktileimg.set_alpha(255)
+                        surface.blit(darktileimg, rect.topleft)
                 elif self.grid[row][col] == 2:
-                    pygame.draw.rect(surface, RED, rect)  # Hit
+                    # Hit marker
+                    pygame.draw.rect(surface, RED, rect)
                 elif self.grid[row][col] == 3:
-                    pygame.draw.rect(surface, WHITE, rect)  # Miss
+                    # Miss marker
+                    pygame.draw.rect(surface, WHITE, rect)
+
+                # Draw grid lines last to ensure they are visible
+                pygame.draw.rect(surface, BLACK, rect, 1)
+
 
     #whole function deals only with ship text to the side of the grid
     def draw_ships(self, surface):
@@ -513,7 +523,7 @@ class Game:
         surface.blit(total_score_text, total_score_rect)
 
     def draw_enemy_grid(self, surface):
-        # Draw the enemy grid (for testing, draw it next to the player's grid)
+        # Draw the enemy grid (left side)
         offset_x = GRID_ORIGIN[0] - GRID_SIZE * CELL_SIZE - 50
         for row in range(GRID_SIZE):
             for col in range(GRID_SIZE):
@@ -523,14 +533,25 @@ class Game:
                     CELL_SIZE,
                     CELL_SIZE
                 )
+                # Draw the water tile first
+                surface.blit(tileimg, rect.topleft)
+
+                # Draw hit/miss indicators
                 if self.enemy_grid[row][col] == 2:
-                    pygame.draw.rect(surface, RED, rect)  # Hit
+                    # Hit marker
+                    pygame.draw.rect(surface, RED, rect)
                 elif self.enemy_grid[row][col] == 3:
-                    pygame.draw.rect(surface, WHITE, rect)  # Miss
-                pygame.draw.rect(surface, BLACK, rect, 1)  # Draw grid lines
-                
-                #This places the background water image onto the grid tiles
-                surface.blit(tileimg, (offset_x + col * CELL_SIZE, GRID_ORIGIN[1] + row * CELL_SIZE))
+                    # Miss marker
+                    pygame.draw.rect(surface, WHITE, rect)
+
+                # Draw grid lines last to ensure they are visible
+                pygame.draw.rect(surface, BLACK, rect, 1)
+
+        # Label the enemy grid
+        label_text = self.small_font.render("Enemy Grid", True, BLACK)
+        surface.blit(label_text, (offset_x + GRID_SIZE * CELL_SIZE // 2 - label_text.get_width() // 2, GRID_ORIGIN[1] - 30))
+
+
 
         # Label the enemy grid
         label_text = self.small_font.render("Enemy Grid", True, BLACK)
