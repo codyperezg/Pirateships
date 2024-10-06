@@ -179,23 +179,24 @@ class Game:
         # Switch turns
         self.my_turn = False
 
-        # Creates a function to scale both players' scores by the 10,000s
-    def base_points(hits):
-        basePoints=hits*10000
+    # Creates a function to scale both players' scores by the 10,000s
+    def base_points(self):
+        basePoints = self.hits * 10000
         return basePoints
 
     # Creates a function to define accuracy for both players
-    def hit_accuracy_percent(hits,moves):
-        print(hits)
-        print(moves)
-        accuracy = (float(hits) / float(moves)) * 100
-        return round(accuracy,2)
+    def hit_accuracy_percent(self):
+        if self.moves == 0:
+            return 0.0
+        accuracy = (float(self.hits) / float(self.moves)) * 100
+        return round(accuracy, 2)
                                 
     # Creates a bonus-points system, using a function, based on both players' accuracy
-    def total_points(hits,hitAccuracy):
-        basePoints=hits*10000
-        bonus=hits*hitAccuracy
-        total_points=bonus+basePoints
+    def total_points(self):
+        basePoints = self.base_points()
+        hitAccuracy = self.hit_accuracy_percent()
+        bonus = self.hits * hitAccuracy
+        total_points = bonus + basePoints
         return int(total_points)
     
     def check_game_over(self):
